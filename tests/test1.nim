@@ -9,4 +9,6 @@ import unittest
 
 import lsblk
 
-# TODO
+test "listBlockDevices":
+  for bd in listBlockDevices():
+    echo $bd
