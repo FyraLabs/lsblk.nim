@@ -12,3 +12,8 @@ import lsblk
 test "listBlockDevices":
   for bd in listBlockDevices():
     echo $bd
+
+test "disk_name and size":
+  for bd in listBlockDevices():
+    echo bd.disk_name
+    echo bd.size

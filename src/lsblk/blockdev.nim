@@ -38,3 +38,37 @@ proc listBlockDevices*(): seq[BlockDevice] =
     index.add name
     result.add BlockDevice(name: name, fullname: "/dev/"&name, diskseq: some(src))
   insertbd(index, result, path)
+  insertbd(index, result, uuid)
+  insertbd(index, result, partuuid)
+  insertbd(index, result, label)
+  insertbd(index, result, partlabel)
+  insertbd(index, result, id)
+
+func is_part*(self: BlockDevice): bool = self.partuuid.is_some
+func is_disk*(self: BlockDevice): bool = not self.is_part
+func is_physical*(self: BlockDevice): bool = self.path.is_some
+
+## If the block-device is a partition, trim out the partition from name and return the name of the
+## disk.
+##
+## This function is **_EXPENSIVE_** because IO is involved. Specifically, this function reads the
+## content of the directory `/sys/block` for a list of disks.
+proc disk_name*(self: BlockDevice): Option[string] =
+  for (_, diskname) in "/sys/block".walkDir(true, true):
+    if self.name.starts_with diskname:
+      return some diskname
+  none(string)
+
+## Fetch the size of the device.
+##
+## This relies on `sysfs(5)`, i.e. the file system mounted at `/sys`.
+##
+## The returned value * 512 = size in bytes.
+proc size*(self: BlockDevice): Option[int] {.raises: [].} =
+  try:
+    let p = "/sys/block" & (
+      if self.is_part: "/" & self.disk_name.get
+      else: "") & "/" & self.name & "/size"
+    some readFile(p)[0..^2].parseInt # need to remove \n
+  except:
+    return none(int)

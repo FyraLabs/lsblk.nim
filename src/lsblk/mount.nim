@@ -30,5 +30,6 @@ proc getMounts*(): Result[seq[Mount], string] =
       return err "Fail to parse /proc/mounts:" & $linenum & " : " & line
   ok res
 
+## List out all found block devices and populate all fields.
 proc listMounts*(): Result[seq[Mount], string] =
   getMounts()
