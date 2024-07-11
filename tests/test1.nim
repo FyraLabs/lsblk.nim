@@ -17,3 +17,8 @@ test "disk_name and size":
   for bd in listBlockDevices():
     echo bd.disk_name
     echo bd.size
+
+test "maj:min":
+  for bd in listBlockDevices():
+    if bd.is_part:
+      echo bd.maj_min

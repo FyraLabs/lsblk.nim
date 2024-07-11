@@ -1,5 +1,6 @@
-import std/[paths, os, options, macros, strutils]
+import std/[paths, os, options, macros, strutils, symlinks]
 import results
+import blockdev/stat
 
 type BlockDevice* = object of RootObj
   name*: string
@@ -48,16 +49,8 @@ func is_part*(self: BlockDevice): bool = self.partuuid.is_some
 func is_disk*(self: BlockDevice): bool = not self.is_part
 func is_physical*(self: BlockDevice): bool = self.path.is_some
 
-## If the block-device is a partition, trim out the partition from name and return the name of the
-## disk.
-##
-## This function is **_EXPENSIVE_** because IO is involved. Specifically, this function reads the
-## content of the directory `/sys/block` for a list of disks.
-proc disk_name*(self: BlockDevice): Option[string] =
-  for (_, diskname) in "/sys/block".walkDir(true, true):
-    if self.name.starts_with diskname:
-      return some diskname
-  none(string)
+## Get the disk name if `self` is a partition, else return self.name
+proc disk_name*(self: BlockDevice): string # forward declare
 
 ## Fetch the size of the device.
 ##
@@ -67,8 +60,37 @@ proc disk_name*(self: BlockDevice): Option[string] =
 proc size*(self: BlockDevice): Option[int] {.raises: [].} =
   try:
     let p = "/sys/block" & (
-      if self.is_part: "/" & self.disk_name.get
+      if self.is_part: "/" & self.disk_name
       else: "") & "/" & self.name & "/size"
     some readFile(p)[0..^2].parseInt # need to remove \n
   except:
     return none(int)
+
+## Get the major, minor ID of the block-device.
+proc maj_min*(self: BlockDevice): tuple[maj: uint, min: uint] =
+  var rawInfo: Stat
+  if stat.lstat(self.fullname.cstring, rawInfo) < 0'i32:
+    raiseOSError(osLastError(), self.fullname)
+  let rdev: uint = rawInfo.st_rdev
+  let maj = (rdev shr 32) and 0xfffff000.uint or (rdev shr 8) and 0xfff
+  let min = (rdev shr 12) and 0xffffff00.uint or rdev and 0xff
+  (maj: maj, min: min)
+
+## Get the major, minor ID of the block-device.
+proc major_minor*(self: BlockDevice): tuple[maj: uint, min: uint] = maj_min(self)
+
+
+## Get the sysfs path for this block device.
+##
+## This relies on `sysfs(5)`, i.e. the file system mounted at `/sys`.
+proc sysfs*(self: BlockDevice): Path =
+  let (maj, min) = self.maj_min
+  Path "/sys/dev/block/" & $maj & ":" & $min
+
+
+## Get the disk name if `self` is a partition, else return self.name
+proc disk_name*(self: BlockDevice): string =
+  if not self.is_part:
+    self.name
+  else:
+    self.sysfs.expandSymlink.parentDir.extractFilename.string
