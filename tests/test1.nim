@@ -22,3 +22,7 @@ test "maj:min":
   for bd in listBlockDevices():
     if bd.is_part:
       echo bd.maj_min
+
+test "listMounts":
+  for mnt in getMounts().get:
+    echo mnt

@@ -1,5 +1,4 @@
 import std/[paths, os, options, macros, strutils, symlinks]
-import results
 import blockdev/stat
 
 type BlockDevice* = object of RootObj

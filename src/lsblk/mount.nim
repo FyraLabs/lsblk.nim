@@ -18,7 +18,7 @@ proc getMounts*(): Result[seq[Mount], string] =
   var fdmounts = newFileStream("/proc/mounts")
   if fdmounts == nil:
     # cannot open file
-    return ok seq[Mount](@[])
+    return err "Fail to open /proc/mounts"
   defer: fdmounts.close()
   var linenum = 0
   var line, dev, mp, fstype, mountopts: string
